@@ -1,0 +1,15 @@
+### This data is primarily pulled from https://www.eia.gov/analysis/studies/powerplants/capitalcost/pdf/capital_cost_AEO2020.pdf,,,,,
+### There were often multiple options for representative plants by fuel (eg advanced nuclear vs small modular reactor) so one was chosen arbitrarily,,,,,
+"### Fuel prices for Biomass and Nuclear are necessary, but did not find them yet",,,,,
+primary_fuel,capital_cost_per_kw,fixed_om_per_kw_year,variable_om_per_mwh,discount_rate,fuel_price_per_btu
+Coal,3676,40.58,4.5,0.06,0.000003211
+Gas,958,12.2,1.87,0.06,0.000001935
+Oil,1810,35.16,5.69,0.06,0.0000124
+Solar,1313,15.25,0,0.06,0
+Wind,1265,26.34,0,0.06,0
+Waste,1563,20.1,6.2,0.06,0
+Hydro,5316,29.86,0,0.06,0
+Geothermal,2521,128.544,1.16,0.06,0
+CSP,7221,85.4,0,0.06,0
+Nuclear,6041,121.64,2.37,0.06,0
+Biomass,4097,125.72,4.83,0.06,0

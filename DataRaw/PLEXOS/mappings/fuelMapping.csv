@@ -1,0 +1,10 @@
+fuel,primary_fuel
+Oil,Oil
+Coa,Coal
+Gas,Gas
+Pet,Oil
+Cog,Cogeneration
+Hyd,Hydro
+Oth,Other
+Sol,Solar
+Csp,Solar
