@@ -1,10 +1,16 @@
-Date Updated: 2021/05/24
+Date Updated: 2021/10/24
 Author: Jonathan Huster (jhuster@stanford.edu)
 
 This document briefly details the MACC model created by Jonathan Huster for Ines Azevedo at Stanford University. 
 The model attempts to create a marginal abatement cost curve methodology at a global scale for power plants. 
 The essential question it is attempting to answer is "What are the cost and emission impacts from replacing
 electricity plants with new lower emissions sources?" Below are some key assumptions and data sources.
+
+Use: 
+
+The model has four folders that help the primary modeling code (toyModel_Brinkerink_HR.R) run. The raw data (those that aren't too large to store on GitHub) are stored in "Data Raw". These folders contain the raw data in CSVs and XLSX formats as well as limited documentation for these sources. The "Data Processing" folder cleans and formats the data in the "Data Raw" folders to fit into the model structure. The "Data Processed" folder contains all the cleaned data processed in the "Data Processing" folder. The "Functions" folder contains the helper functions that are used in the model and data processing. 
+
+The main portion of the model is contained within the toyModel_Brinkerink_HR.R. To run the model simply source this file. It will output a set of marginal abatement cost curves in the output folder. There will be one curve for each country where the colors on the graph indicate what the original fuel source was and the fuel source it was replaced with. 
 
 Data :
 
