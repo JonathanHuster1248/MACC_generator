@@ -1,0 +1,15 @@
+### This data is a set of assumptions surrounding the capacity factor for replacement plants ,
+"### These values are just assumptions, but regionally disaggregated values could be calculated from Brinkerink's generation and capcity data ",
+### ,
+primary_fuel,capacity_factor
+Coal,0.8
+Gas,0.75
+Oil,0.6
+Solar,0.4
+Wind,0.3
+Waste,0.4
+Hydro,0.3
+Geothermal,0.85
+CSP,0.5
+Nuclear,0.85
+Biomass,0.65

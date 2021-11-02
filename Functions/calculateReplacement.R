@@ -1,5 +1,14 @@
 
-calculateReplacement <- function(historicalPlants, replacementOptions, replacementFuel){
+calculateReplacement <- function(historicalPlants, replacementOptions, replacementFuel, replacementCapacityFactors){
+  
+  hours_year <- 8760
+  
+  replacementOptions %>% 
+    left_join(replacementCapacityFactors, by = c("replacement_primary_fuel"="primary_fuel")) %>%
+    filter(replacement_primary_fuel == replacementFuel) %>% 
+    rename(replacement_capacity_factor = capacity_factor) %>%
+    select(-replacement_primary_fuel) ->
+    replacementOption
   
   #The mutates calculate (in order) 
   # 1) costs of the old plant, 
@@ -9,17 +18,15 @@ calculateReplacement <- function(historicalPlants, replacementOptions, replaceme
   # 5) difference in emissions
   
   historicalPlants %>%
-    left_join(replacementOptions %>% 
-                filter(replacement_primary_fuel == replacementFuel) %>% 
-                select(-replacement_primary_fuel),
-              by = c("country"="replacement_country")) %>%
+    left_join(replacementOption,
+              by = c("country"="replacement_country"))%>%
     # old plant costs
     mutate(remaining_capital = if_else(age < pay_off_age, capacity_mw*MW_kW*capital_cost_per_kw*(1-age/pay_off_age), 0),
            fix_om = capacity_mw*MW_kW*fixed_om_per_kw_year,
-           variable_om = generation_kwh/MW_kW*variable_om_per_mwh) %>% 
+           variable_om = generation_kwh/MW_kW*variable_om_per_mwh) %>%
     # New plant costs
-    mutate(replacement_capital = capacity_mw*MW_kW*replacement_capital_cost_per_kw,
-           replacement_fix_om = capacity_mw*MW_kW*replacement_fixed_om_per_kw_year,
+    mutate(replacement_capital = (generation_kwh/(replacement_capacity_factor*hours_year))*replacement_capital_cost_per_kw,
+           replacement_fix_om = (generation_kwh/(replacement_capacity_factor*hours_year))*replacement_fixed_om_per_kw_year,
            replacement_variable_om = generation_kwh/MW_kW*replacement_variable_om_per_mwh) %>%
     # Total costs
     mutate(total_capital = remaining_capital + replacement_capital,
@@ -36,16 +43,16 @@ calculateReplacement <- function(historicalPlants, replacementOptions, replaceme
   replacementPlant %>%
     select(-c("replacement_emissions","annuity_factor","total_fuel","total_om",
               "total_capital","replacement_variable_om",'replacement_fix_om',
-              "replacement_capital","variable_om","fix_om","remaining_capital",
+              "replacement_capital","variable_om","fix_om","remaining_capital","replacement_capacity_factor",
               tail(names(replacementOptions), n=-2))) %>%
     rename_with(~paste0(.x,"_", replacementFuel), all_of(c("total_emissions_reduction", "total_annual_cost"))) %>%
     return()
 }
 
-calculateReplacementVec <- function(historicalPlants, replacementOptions, replacementFuels){
+calculateReplacementVec <- function(historicalPlants, replacementOptions, replacementFuels, replacementCapacityFactors){
   holder <- historicalPlants
   for(replacementFuel in replacementFuels){
-    holder <- calculateReplacement(holder, replacementOptions, replacementFuel)
+    holder <- calculateReplacement(holder, replacementOptions, replacementFuel, replacementCapacityFactors)
   }
   return(holder)
 }

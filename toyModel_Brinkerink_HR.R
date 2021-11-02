@@ -21,7 +21,7 @@
 
 ## Set Working Directory -------
 
-DIR <- file.path("C:","Users","jonat","Box Sync","Research","MACC","Model")
+DIR <- file.path("C:","Users","jonat","Box Sync","Research","MACC", "MACC_generator")
 DATADIR <- file.path(DIR,"DataProcessed")
 FUNCTIONSDIR <- file.path(DIR,"Functions")
 OUTPUTDIR <- file.path(DIR,"Output")
@@ -37,6 +37,7 @@ PLANTFILE <- file.path(DATADIR, "WRI_heatrate.csv")
 COSTFILE <- file.path(DATADIR, "plantCostGlobal.csv")
 AGEFILE <- file.path(DATADIR, "plantAge.csv")
 EMISSIONSFILE <- file.path(DATADIR, "plantEmissionsGlobal.csv")
+CAPACITYFACTORFILE <- file.path(DATADIR, "plantCapacityFactor.csv")
 
 WRISTATEMAPPINGFILE <- file.path(DATADIR, "mappings", "wri_state_nerc_map.csv")
 
@@ -52,6 +53,7 @@ plantData <- read.csv(PLANTFILE)
 costData <- read.csv(COSTFILE, skip = 3)
 ageData <- read.csv(AGEFILE)
 emissionsData <- read.csv(EMISSIONSFILE, skip = 3)
+capacityFactorData <- read.csv(CAPACITYFACTORFILE, skip = 3)
 
 wriStateMap <- read.csv(WRISTATEMAPPINGFILE)
 
@@ -141,7 +143,8 @@ holder %>%
 
 calculateReplacementVec(plantEmissions,
                         replacement_options,
-                        replacement_fuel) %>%
+                        replacement_fuel,
+                        capacityFactorData) %>%
   gather("param", "value", starts_with("total")) %>%
   mutate(replacement_primary_fuel = gsub(".*_", "", param),
          param = gsub("_[[:alpha:]]+$","",gsub("total_","",param))) %>%
@@ -272,33 +275,33 @@ colorscheme <- c(
 yMax <- cap_price
 yMin <- -cap_price
 
-for(state_name in states){
-  annual_cost_per_emission <-
-    plotMACC(stateOrderedMACC %>% filter(state == state_name),
-             fig_title = paste0("MACC for ", state_name, " Plant Removal and Replacement"),
-             fig_xlab = "Emissions Avoided (tonnes CO2/Year)") +
-    ylim(yMin-10, yMax+10) +
-    scale_fill_manual(values = colorscheme)+
-    scale_color_manual(values = colorscheme)
-
-  ggsave(file.path(OUTPUTDIR, "Brinkerink_states", paste0("MACC_", state_name,".png")), width = 5, height = 3.66)
-}
-
-# by nation ---------------------------
-
-# for(country_name in countries){
+# for(state_name in states){
 #   annual_cost_per_emission <-
-#     plotMACC(nationOrderedMACC %>% filter(country == country_name),
-#              fig_title = paste0("MACC for ", country_name, " Plant Removal and Replacement with ", replacement_fuel),
+#     plotMACC(stateOrderedMACC %>% filter(state == state_name),
+#              fig_title = paste0("MACC for ", state_name, " Plant Removal and Replacement"),
 #              fig_xlab = "Emissions Avoided (tonnes CO2/Year)") +
 #     ylim(yMin-10, yMax+10) +
 #     scale_fill_manual(values = colorscheme)+
 #     scale_color_manual(values = colorscheme)
 # 
-#   ggsave(file.path(OUTPUTDIR, "Brinkerink_countries", paste0("MACC_", country_name,".png")), width = 5, height = 3.66)
+#   ggsave(file.path(OUTPUTDIR, "Brinkerink_states", paste0("MACC_", state_name,".png")), width = 5, height = 3.66)
 # }
 
-ggplot(costEffectivenes %>% filter(name == "Kahe"), aes(x = emissions_reduction,
-                             y = annual_cost)) +
-  geom_polygon(aes(group = name), fill = NA, color = "black") +
-  geom_point(aes(shape = replacement_primary_fuel))
+# by nation ---------------------------
+
+for(country_name in countries){
+  annual_cost_per_emission <-
+    plotMACC(nationOrderedMACC %>% filter(country == country_name),
+             fig_title = paste0("MACC for ", country_name, " Plant Removal and Replacement with ", replacement_fuel),
+             fig_xlab = "Emissions Avoided (tonnes CO2/Year)") +
+    ylim(yMin-10, yMax+10) +
+    scale_fill_manual(values = colorscheme)+
+    scale_color_manual(values = colorscheme)
+
+  ggsave(file.path(OUTPUTDIR, "Brinkerink_countries", paste0("MACC_", country_name,".png")), width = 5, height = 3.66)
+}
+
+# ggplot(costEffectivenes %>% filter(name == "Kahe"), aes(x = emissions_reduction,
+#                              y = annual_cost)) +
+#   geom_polygon(aes(group = name), fill = NA, color = "black") +
+#   geom_point(aes(shape = replacement_primary_fuel))
