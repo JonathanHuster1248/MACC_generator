@@ -39,6 +39,8 @@ AGEFILE <- file.path(DATADIR, "plantAge.csv")
 EMISSIONSFILE <- file.path(DATADIR, "plantEmissionsGlobal.csv")
 CAPACITYFACTORFILE <- file.path(DATADIR, "plantCapacityFactor.csv")
 
+USAFILE <- file.path(DATADIR, "detailed_data", "CEMS_gen_emiss.csv")
+
 WRISTATEMAPPINGFILE <- file.path(DATADIR, "mappings", "wri_state_nerc_map.csv")
 
 ANNUITY_FACTORFILE <- file.path(FUNCTIONSDIR, "calculate_annuity_factor.R")
@@ -55,6 +57,8 @@ ageData <- read.csv(AGEFILE)
 emissionsData <- read.csv(EMISSIONSFILE, skip = 3)
 capacityFactorData <- read.csv(CAPACITYFACTORFILE, skip = 3)
 
+usa_data <- read.csv(USAFILE)
+
 wriStateMap <- read.csv(WRISTATEMAPPINGFILE)
 
 # Set constants and assumptions ---------------------------
@@ -70,6 +74,8 @@ CURRENT_YEAR <- as.integer(format(Sys.Date(), "%Y"))
 
 cap_price <- 200
 replacement_fuel <- c("Gas", "Solar", "Wind")
+
+coreCols <- c("country", "name", "capacity_mw", "primary_fuel","commissioningYear", "age", "generation_kwh")
 
 
 # Establish power plant dataframe ---------------------------
@@ -88,26 +94,35 @@ plantData %>%
          # generation_gwh_2015, generation_gwh_2016, 
          generation_gwh_2017, estimated_generation_gwh, 
          commissioningYear, heatRate, plantCapacity) %>%
+  mutate(age = CURRENT_YEAR-commissioningYear, 
+         generation_gwh = if_else(!is.na(generation_gwh_2017), 
+                                  generation_gwh_2017,
+                                  estimated_generation_gwh),
+         generation_kwh = generation_gwh*GWh_kWh) %>%
   tibble() ->
   cleanPlantData
 
 cleanPlantData %>% 
-  left_join(costData, by = c("country", "primary_fuel")) %>%
-  left_join(ageData, by = c("primary_fuel")) %>%
-  mutate(age = CURRENT_YEAR-commissioningYear, 
-         generation_gwh = if_else(!is.na(generation_gwh_2017), 
-                              generation_gwh_2017,
-                              estimated_generation_gwh),
-         generation_kwh = generation_gwh*GWh_kWh) %>%
-  select(-generation_gwh_2017, -estimated_generation_gwh, -generation_gwh) ->
-  plantCost
-
-plantCost %>% 
   left_join(emissionsData, by = c("country","primary_fuel")) %>%
   mutate(fuel_consumption_btu = generation_kwh*heatRate*kila_unit,
          emissions_co2_tonne = fuel_consumption_btu*BTU_MMBTU*co2_lb_per_mmbtu*lb_kg*kg_tonne) %>%
-  unique()->
+  unique() %>%
+  select(c(all_of(coreCols), "heat_rate_btu_per_kwh", "fuel_consumption_btu", "emissions_co2_tonne"))->
   plantEmissions
+
+plantEmissions %>%
+  filter(country != "USA") %>%
+  rbind(usa_data %>% select(names(plantEmissions))) ->
+  plantEmissionsCEMS
+
+
+
+plantEmissionsCEMS %>% 
+  left_join(costData, by = c("country", "primary_fuel")) %>%
+  left_join(ageData, by = c("primary_fuel")) ->
+  plantCost
+
+
 
 
 
@@ -141,7 +156,7 @@ holder %>%
 
 # Apply replacements ---------------------------
 
-calculateReplacementVec(plantEmissions,
+calculateReplacementVec(plantCost,
                         replacement_options,
                         replacement_fuel,
                         capacityFactorData) %>%
@@ -166,7 +181,7 @@ replacementPlant %>%
   mutate(annual_cost_per_emission = annual_cost/(emissions_reduction*giga_unit)) %>%
   filter(emissions_reduction>0,
          generation_kwh>=0, 
-         state == "HI") ->
+         state == "PA") ->
   costEffectivenes
 
 # by US state ---------------------------
@@ -301,7 +316,10 @@ for(country_name in countries){
   ggsave(file.path(OUTPUTDIR, "Brinkerink_countries", paste0("MACC_", country_name,".png")), width = 5, height = 3.66)
 }
 
-# ggplot(costEffectivenes %>% filter(name == "Kahe"), aes(x = emissions_reduction,
+# ggplot(costEffectivenes %>% filter(name == "Fairless Energy Center"), aes(x = emissions_reduction,
 #                              y = annual_cost)) +
 #   geom_polygon(aes(group = name), fill = NA, color = "black") +
-#   geom_point(aes(shape = replacement_primary_fuel))
+#   geom_point(aes(shape = replacement_primary_fuel))+
+#   ggtitle("Replacement cost vs emissions reduction") +
+#   xlab("Emissions reduction (GtCO2)") +
+#   ylab("Cost ($)")
