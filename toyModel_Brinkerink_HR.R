@@ -180,7 +180,7 @@ replacementPlant %>%
   left_join(wriStateMap %>% select(country, name, primary_fuel, state, nerc)) %>%
   mutate(annual_cost_per_emission = annual_cost/(emissions_reduction*giga_unit)) %>%
   filter(emissions_reduction>0,
-         generation_kwh>=0, 
+         generation_kwh>0, 
          state == "PA") ->
   costEffectivenes
 
@@ -192,7 +192,7 @@ replacementPlant %>%
   group_by(country, name, capacity_mw, primary_fuel, commissioningYear) %>% 
   # Physical/Logic decisions
   filter(emissions_reduction>0,
-         generation_kwh>=0) %>%
+         generation_kwh>0) %>%
   # Economic decisions
   filter(between(annual_cost_per_emission, -cap_price, cap_price),
          annual_cost_per_emission == min(annual_cost_per_emission)) %>%
@@ -218,7 +218,7 @@ replacementPlant %>%
   group_by(country, name, capacity_mw, primary_fuel, commissioningYear) %>% 
   # Physical/Logic decisions
   filter(emissions_reduction>0,
-         generation_kwh>=0) %>%
+         generation_kwh>0) %>%
   # Economic decisions
   filter(between(annual_cost_per_emission, -cap_price, cap_price),
          annual_cost_per_emission == min(annual_cost_per_emission)) %>%
@@ -286,40 +286,55 @@ colorscheme <- c(
   "Waste_Gas"          = "#580000")
 
 # by US state ---------------------------
-# xMax <- stateOrderedMACC %>% pull(cum_reduction) %>% max()/giga_unit
+xMax <- stateOrderedMACC %>% pull(cum_reduction) %>% max()/giga_unit
 yMax <- cap_price
 yMin <- -cap_price
 
-# for(state_name in states){
-#   annual_cost_per_emission <-
-#     plotMACC(stateOrderedMACC %>% filter(state == state_name),
-#              fig_title = paste0("MACC for ", state_name, " Plant Removal and Replacement"),
-#              fig_xlab = "Emissions Avoided (tonnes CO2/Year)") +
-#     ylim(yMin-10, yMax+10) +
-#     scale_fill_manual(values = colorscheme)+
-#     scale_color_manual(values = colorscheme)
-# 
-#   ggsave(file.path(OUTPUTDIR, "Brinkerink_states", paste0("MACC_", state_name,".png")), width = 5, height = 3.66)
-# }
+for(state_name in states){
+  annual_cost_per_emission <-
+    plotMACC(stateOrderedMACC %>% filter(state == state_name),
+             fig_title = paste0("MACC for ", state_name),
+             fig_xlab = "Emissions Avoided (tonnes CO2/Year)") +
+    ylim(yMin-10, yMax+10) +
+    scale_fill_manual(values = colorscheme)+
+    scale_color_manual(values = colorscheme) +
+    labs(fill='Conversion (from_to)',
+         color='Conversion (from_to)')
+
+  ggsave(file.path(OUTPUTDIR, "Brinkerink_states", paste0("MACC_", state_name,".png")), width = 5, height = 3.66)
+}
 
 # by nation ---------------------------
 
 for(country_name in countries){
   annual_cost_per_emission <-
     plotMACC(nationOrderedMACC %>% filter(country == country_name),
-             fig_title = paste0("MACC for ", country_name, " Plant Removal and Replacement with ", replacement_fuel),
-             fig_xlab = "Emissions Avoided (tonnes CO2/Year)") +
+             fig_title = paste0("MACC for ", country_name),
+             fig_xlab = "Emissions Avoided (Gigatonnes CO2/Year)") +
     ylim(yMin-10, yMax+10) +
     scale_fill_manual(values = colorscheme)+
-    scale_color_manual(values = colorscheme)
+    scale_color_manual(values = colorscheme) +
+    labs(fill='Conversion (from_to)',
+         color='Conversion (from_to)')
+  
+  # annual_cost_vs_emissions <- 
+  #   ggplot(nationOrderedMACC %>% filter(country == country_name), aes(x = annual_cost, y = emissions_reduction))+
+  #   geom_point(aes(color = ori_rep)) +
+  #   ggtitle(paste0("Cost vs Reductions for ", country_name)) +
+  #   xlab("Annual Cost (USD)") +
+  #   ylab("Annual Emissions Reduction (GtC)")
 
-  ggsave(file.path(OUTPUTDIR, "Brinkerink_countries", paste0("MACC_", country_name,".png")), width = 5, height = 3.66)
-}
+  ggsave(file.path(OUTPUTDIR, "Brinkerink_countries", paste0("MACC_", country_name,".png")),annual_cost_per_emission, width = 5, height = 3.66)
+  # ggsave(file.path(OUTPUTDIR, "Brinkerink_countries", paste0("emissions_vs_reductions_", country_name,".png")), annual_cost_vs_emissions, width = 5, height = 3.66)
+  
+  }
 
-# ggplot(costEffectivenes %>% filter(name == "Fairless Energy Center"), aes(x = emissions_reduction,
-#                              y = annual_cost)) +
-#   geom_polygon(aes(group = name), fill = NA, color = "black") +
-#   geom_point(aes(shape = replacement_primary_fuel))+
-#   ggtitle("Replacement cost vs emissions reduction") +
-#   xlab("Emissions reduction (GtCO2)") +
-#   ylab("Cost ($)")
+ggplot(costEffectivenes %>% filter(primary_fuel == "Gas", between(annual_cost_per_emission, -200, 200)),#filter(name == "Fairless Energy Center"),
+       aes(x = emissions_reduction,
+                             y = annual_cost_per_emission)) +
+  geom_polygon(aes(group = name), fill = NA, color = "black") +
+  geom_point(aes(shape = replacement_primary_fuel))+
+  ggtitle("Replacement cost vs emissions reduction") +
+  # scale_y_log10()+
+  xlab("Emissions reduction (GtCO2)") +
+  ylab("Cost ($)")
