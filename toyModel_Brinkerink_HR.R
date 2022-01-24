@@ -43,6 +43,8 @@ USAFILE <- file.path(DATADIR, "detailed_data", "CEMS_gen_emiss.csv")
 
 WRISTATEMAPPINGFILE <- file.path(DATADIR, "mappings", "wri_state_nerc_map.csv")
 
+OUTFILE <- file.path(OUTPUTDIR, "MACReplacement.csv")
+
 ANNUITY_FACTORFILE <- file.path(FUNCTIONSDIR, "calculate_annuity_factor.R")
 CALCULATEREPLACEMENTFILE <- file.path(FUNCTIONSDIR, "calculateReplacement.R")
 PLOTMACCFILE <- file.path(FUNCTIONSDIR, "plotMACC.R")
@@ -75,7 +77,7 @@ CURRENT_YEAR <- as.integer(format(Sys.Date(), "%Y"))
 cap_price <- 200
 replacement_fuel <- c("Gas", "Solar", "Wind")
 
-coreCols <- c("country", "name", "capacity_mw", "primary_fuel","commissioningYear", "age", "generation_kwh")
+coreCols <- c("country", "name", "capacity_mw", "primary_fuel", "age", "generation_kwh")
 
 
 # Establish power plant dataframe ---------------------------
@@ -99,6 +101,7 @@ plantData %>%
                                   generation_gwh_2017,
                                   estimated_generation_gwh),
          generation_kwh = generation_gwh*GWh_kWh) %>%
+  select(-c(generation_gwh_2017, estimated_generation_gwh, commissioningYear)) %>%
   tibble() ->
   cleanPlantData
 
@@ -115,27 +118,18 @@ plantEmissions %>%
   rbind(usa_data %>% select(names(plantEmissions))) ->
   plantEmissionsCEMS
 
-
-
 plantEmissionsCEMS %>% 
   left_join(costData, by = c("country", "primary_fuel")) %>%
   left_join(ageData, by = c("primary_fuel")) ->
   plantCost
 
 
-
-
-
-
-
-
 # Establish replacement options ---------------------------
 # Known issues/assumptions
-# 1) We assume that a new natural gas plant of equal size 
-#    of the plant we are replacing is opened. This maintains
-#    total demand and capacity. If we want to increase demand
-#    over time or add an intermittent source that requires 
-#    an increased capacity we could do that. 
+# 1) We assume that a new power plant replaces the current plant. 
+#    We assume a set capacity factor and historic generation. This maintains
+#    total demand, but not capacity. If we want to increase demand
+#    over time we could do that. 
 # 2) This assumes that the remaining capital was paid off in a linear fashion
 #    rather than in an annualized rate. The remaining capital and new
 #    capital is paid off in an annualized rate, but as a first assumption
@@ -163,7 +157,10 @@ calculateReplacementVec(plantCost,
   gather("param", "value", starts_with("total")) %>%
   mutate(replacement_primary_fuel = gsub(".*_", "", param),
          param = gsub("_[[:alpha:]]+$","",gsub("total_","",param))) %>%
-  spread(param, value) ->
+  spread(param, value) %>%
+  select(country, name, primary_fuel, capacity_mw, age, 
+         generation_kwh, emissions_co2_tonne, replacement_primary_fuel, 
+         annual_cost, emissions_reduction)  ->
   replacementPlant
 
 
@@ -174,25 +171,15 @@ calculateReplacementVec(plantCost,
 
 # Use the model  ---------------------------
 
-# Plot the cost effectiveness of different replacements -----
-replacementPlant %>%
-  filter(country == "USA") %>%
-  left_join(wriStateMap %>% select(country, name, primary_fuel, state, nerc)) %>%
-  mutate(annual_cost_per_emission = annual_cost/(emissions_reduction*giga_unit)) %>%
-  filter(emissions_reduction>0,
-         generation_kwh>0, 
-         state == "PA") ->
-  costEffectivenes
-
 # by US state ---------------------------
 replacementPlant %>%
   filter(country == "USA") %>%
   left_join(wriStateMap %>% select(country, name, primary_fuel, state, nerc)) %>%
   mutate(annual_cost_per_emission = annual_cost/(emissions_reduction*giga_unit)) %>%
-  group_by(country, name, capacity_mw, primary_fuel, commissioningYear) %>% 
+  group_by(country, name, capacity_mw, primary_fuel, age) %>% 
   # Physical/Logic decisions
   filter(emissions_reduction>0,
-         generation_kwh>0) %>%
+         generation_kwh>0) %>% # Side note, having these filters within the group by makes them much slower, but not noticable yet.
   # Economic decisions
   filter(between(annual_cost_per_emission, -cap_price, cap_price),
          annual_cost_per_emission == min(annual_cost_per_emission)) %>%
@@ -210,18 +197,18 @@ if (any(sanityCheck)){
   error("A state removed more than it's total emisssions")
 }
 
-states <- stateOrderedMACC %>% pull(state) %>% unique()
+states <- stateOrderedMACC %>% filter(!is.na(state)) %>% pull(state) %>% unique()
 
 # by nation ---------------------------
 replacementPlant %>%
   mutate(annual_cost_per_emission = annual_cost/(emissions_reduction*giga_unit)) %>%
-  group_by(country, name, capacity_mw, primary_fuel, commissioningYear) %>% 
+  group_by(country, name, capacity_mw, primary_fuel, age) %>% 
   # Physical/Logic decisions
   filter(emissions_reduction>0,
          generation_kwh>0) %>%
   # Economic decisions
-  filter(between(annual_cost_per_emission, -cap_price, cap_price),
-         annual_cost_per_emission == min(annual_cost_per_emission)) %>%
+  filter(# between(annual_cost_per_emission, -cap_price, cap_price),
+    annual_cost_per_emission == min(annual_cost_per_emission)) %>%
   group_by(country) %>%
   arrange(country, annual_cost_per_emission) %>%
   mutate(cum_reduction = cumsum(emissions_reduction),
@@ -236,7 +223,7 @@ if (any(sanityCheck)){
   error("A nation removed more than it's total emisssions")
 }
 
-countries <- nationOrderedMACC %>% pull(country) %>% unique()
+countries <- nationOrderedMACC %>% filter(!is.na(country)) %>% pull(country) %>% unique()
 
 # Plot the model results ---------------------------
 
@@ -294,7 +281,7 @@ for(state_name in states){
   annual_cost_per_emission <-
     plotMACC(stateOrderedMACC %>% filter(state == state_name),
              fig_title = paste0("MACC for ", state_name),
-             fig_xlab = "Emissions Avoided (tonnes CO2/Year)") +
+             fig_xlab = "Emissions Avoided (Gigatonnes CO2/Year)") +
     ylim(yMin-10, yMax+10) +
     scale_fill_manual(values = colorscheme)+
     scale_color_manual(values = colorscheme) +
@@ -312,8 +299,8 @@ for(country_name in countries){
              fig_title = paste0("MACC for ", country_name),
              fig_xlab = "Emissions Avoided (Gigatonnes CO2/Year)") +
     ylim(yMin-10, yMax+10) +
-    scale_fill_manual(values = colorscheme)+
-    scale_color_manual(values = colorscheme) +
+    # scale_fill_manual(values = colorscheme)+
+    # scale_color_manual(values = colorscheme) +
     labs(fill='Conversion (from_to)',
          color='Conversion (from_to)')
   
